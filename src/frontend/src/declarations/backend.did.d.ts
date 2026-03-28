@@ -97,6 +97,9 @@ export type UserRole = { 'admin' : null } |
   { 'guest' : null };
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'login' : ActorMethod<[string, string], [] | [UserProfile]>,
+  'createTeacherAccount' : ActorMethod<[string, string, string], boolean>,
+  'changePassword' : ActorMethod<[string, string, string], boolean>,
   'addCourse' : ActorMethod<[Course], bigint>,
   'addLeaveEntry' : ActorMethod<[LeaveEntry], bigint>,
   'addStudent' : ActorMethod<[Student], bigint>,
@@ -104,6 +107,8 @@ export interface _SERVICE {
   'approveLeave' : ActorMethod<[bigint, string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'getAllCourses' : ActorMethod<[], Array<Course>>,
+  'getAllLeaveEntries' : ActorMethod<[], Array<LeaveEntry>>,
+  'getAllNotifications' : ActorMethod<[], Array<Notification>>,
   'getAllStudents' : ActorMethod<[], Array<Student>>,
   'getAllTeachers' : ActorMethod<[], Array<Teacher>>,
   'getAttendanceByCourse' : ActorMethod<[bigint], Array<AttendanceRecord>>,

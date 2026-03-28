@@ -214,10 +214,30 @@ export interface backendInterface {
     updateCourse(id: bigint, course: Course): Promise<void>;
     updateStudent(id: bigint, student: Student): Promise<void>;
     updateTeacher(id: bigint, teacher: Teacher): Promise<void>;
+    login(username: string, password: string): Promise<UserProfile | null>;
+    createTeacherAccount(username: string, password: string, name: string): Promise<boolean>;
+    getAllLeaveEntries(): Promise<Array<LeaveEntry>>;
+    getAllNotifications(): Promise<Array<Notification>>;
 }
 import type { AttendanceRecord as _AttendanceRecord, AttendanceStatus as _AttendanceStatus, Course as _Course, CourseType as _CourseType, LeaveEntry as _LeaveEntry, LeaveType as _LeaveType, StudentFilters as _StudentFilters, UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
+    async login(arg0: string, arg1: string): Promise<UserProfile | null> {
+        const result = await this.actor.login(arg0, arg1);
+        return result.length === 0 ? null : result[0];
+    }
+    async createTeacherAccount(arg0: string, arg1: string, arg2: string): Promise<boolean> {
+        const result = await this.actor.createTeacherAccount(arg0, arg1, arg2);
+        return result;
+    }
+    async getAllLeaveEntries(): Promise<Array<LeaveEntry>> {
+        const result = await this.actor.getAllLeaveEntries();
+        return from_candid_vec_n26(this._uploadFile, this._downloadFile, result);
+    }
+    async getAllNotifications(): Promise<Array<Notification>> {
+        const result = await this.actor.getAllNotifications();
+        return result;
+    }
     async _initializeAccessControlWithSecret(arg0: string): Promise<void> {
         if (this.processError) {
             try {
@@ -806,6 +826,17 @@ function to_candid_variant_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8
     } : value == LeaveType.onDuty ? {
         onDuty: null
     } : value;
+}
+function from_candid_vec_n26(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<any>): Array<LeaveEntry> {
+    return value.map((x: any) => ({
+        id: x.id,
+        isApproved: x.isApproved,
+        studentId: x.studentId,
+        date: x.date,
+        approvedBy: x.approvedBy,
+        leaveType: "permission" in x.leaveType ? LeaveType.permission : "leave" in x.leaveType ? LeaveType.leave : LeaveType.onDuty,
+        courseId: x.courseId,
+    }));
 }
 export interface CreateActorOptions {
     agent?: Agent;

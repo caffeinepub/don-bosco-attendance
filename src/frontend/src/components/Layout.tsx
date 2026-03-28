@@ -16,7 +16,7 @@ import {
 import type { ReactNode } from "react";
 import { useState } from "react";
 import type { Page } from "../App";
-import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import { useSimpleAuth } from "../hooks/useSimpleAuth";
 
 interface NavItem {
   id: Page;
@@ -87,22 +87,19 @@ export default function Layout({
   userName,
   userRole,
 }: Props) {
-  const { clear } = useInternetIdentity();
+  const { logout } = useSimpleAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      {/* Logo */}
       <div className="p-5 border-b border-sidebar-border">
         <h2 className="font-bold text-sm text-foreground leading-tight">
           Don Bosco College
         </h2>
         <p className="text-xs text-muted-foreground mt-0.5">of Agriculture</p>
       </div>
-
-      {/* Nav */}
       <nav className="flex-1 p-3 space-y-0.5">
         {visibleItems.map((item) => (
           <button
@@ -125,8 +122,6 @@ export default function Layout({
           </button>
         ))}
       </nav>
-
-      {/* User + Logout */}
       <div className="p-4 border-t border-sidebar-border">
         <div className="flex items-center gap-3 mb-3">
           <div
@@ -148,11 +143,10 @@ export default function Layout({
           variant="ghost"
           size="sm"
           className="w-full justify-start gap-2 text-muted-foreground hover:text-destructive"
-          onClick={() => clear()}
+          onClick={logout}
           data-ocid="nav.logout.button"
         >
-          <LogOut size={16} />
-          Logout
+          <LogOut size={16} /> Logout
         </Button>
       </div>
     </div>
@@ -160,7 +154,6 @@ export default function Layout({
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Top Header */}
       <header
         className="h-14 flex items-center justify-between px-4 md:px-6 text-white flex-shrink-0"
         style={{ backgroundColor: "oklch(0.32 0.10 245)" }}
@@ -182,7 +175,7 @@ export default function Layout({
           <span className="text-sm opacity-80 hidden sm:block">{userName}</span>
           <button
             type="button"
-            onClick={() => clear()}
+            onClick={logout}
             className="text-sm opacity-70 hover:opacity-100 transition-opacity"
             data-ocid="header.logout.button"
           >
@@ -192,7 +185,6 @@ export default function Layout({
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Mobile overlay */}
         {sidebarOpen && (
           <div
             role="button"
@@ -203,8 +195,6 @@ export default function Layout({
             onKeyDown={(e) => e.key === "Escape" && setSidebarOpen(false)}
           />
         )}
-
-        {/* Sidebar */}
         <aside
           className={cn(
             "w-60 flex-shrink-0 bg-sidebar border-r border-sidebar-border overflow-y-auto",
@@ -217,12 +207,8 @@ export default function Layout({
         >
           <SidebarContent />
         </aside>
-
-        {/* Main content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           {children}
-
-          {/* Footer */}
           <footer className="mt-10 text-center text-xs text-muted-foreground">
             © {new Date().getFullYear()}. Built with ❤️ using{" "}
             <a

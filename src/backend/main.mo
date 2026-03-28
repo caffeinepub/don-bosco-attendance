@@ -8,22 +8,78 @@ import Int "mo:core/Int";
 import List "mo:core/List";
 import Iter "mo:core/Iter";
 import Runtime "mo:core/Runtime";
-import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 
 actor {
-  // Authorization
+  // Kept for stable variable compatibility with previous version
   let accessControlState = AccessControl.initState();
 
-  include MixinAuthorization(accessControlState);
-
-  // User Profile Type
+  // Kept for stable variable compatibility with previous version
   public type UserProfile = {
     name : Text;
-    role : Text; // "admin" or "teacher"
+    role : Text;
+  };
+  let userProfiles = Map.empty<Principal, UserProfile>();
+
+  // Simple credential-based auth
+  public type Credential = {
+    username : Text;
+    password : Text;
+    name : Text;
+    role : Text;
   };
 
-  let userProfiles = Map.empty<Principal, UserProfile>();
+  let credentials = Map.empty<Text, Credential>();
+
+  // Kept for stable variable compatibility with previous version
+  var defaultAdminSeeded = false;
+
+  // Seed default admin -- runs on every actor initialization
+  credentials.add("dbca", {
+    username = "dbca";
+    password = "dbca123";
+    name = "Administrator";
+    role = "admin";
+  });
+  defaultAdminSeeded := true;
+
+  // Login: returns profile if credentials match
+  public shared func login(username : Text, password : Text) : async ?UserProfile {
+    switch (credentials.get(username)) {
+      case (null) { null };
+      case (?cred) {
+        if (cred.password == password) {
+          ?{ name = cred.name; role = cred.role };
+        } else {
+          null;
+        };
+      };
+    };
+  };
+
+  public shared func createTeacherAccount(username : Text, password : Text, name : Text) : async Bool {
+    credentials.add(username, {
+      username;
+      password;
+      name;
+      role = "teacher";
+    });
+    true;
+  };
+
+  public shared func changePassword(username : Text, oldPassword : Text, newPassword : Text) : async Bool {
+    switch (credentials.get(username)) {
+      case (null) { false };
+      case (?cred) {
+        if (cred.password == oldPassword) {
+          credentials.add(username, { cred with password = newPassword });
+          true;
+        } else {
+          false;
+        };
+      };
+    };
+  };
 
   // Data Models
   module Entities {
@@ -40,8 +96,8 @@ actor {
         isActive : Bool;
       };
 
-      public func compareById(student1 : Student, student2 : Student) : Order.Order {
-        Nat.compare(student1.id, student2.id);
+      public func compareById(s1 : Student, s2 : Student) : Order.Order {
+        Nat.compare(s1.id, s2.id);
       };
     };
 
@@ -53,8 +109,8 @@ actor {
         isActive : Bool;
       };
 
-      public func compareById(teacher1 : Teacher, teacher2 : Teacher) : Order.Order {
-        Nat.compare(teacher1.id, teacher2.id);
+      public func compareById(t1 : Teacher, t2 : Teacher) : Order.Order {
+        Nat.compare(t1.id, t2.id);
       };
     };
 
@@ -71,8 +127,8 @@ actor {
         isActive : Bool;
       };
 
-      public func compareById(course1 : Course, course2 : Course) : Order.Order {
-        Nat.compare(course1.id, course2.id);
+      public func compareById(c1 : Course, c2 : Course) : Order.Order {
+        Nat.compare(c1.id, c2.id);
       };
     };
 
@@ -91,8 +147,8 @@ actor {
         createdAt : Int;
       };
 
-      public func compareById(record1 : AttendanceRecord, record2 : AttendanceRecord) : Order.Order {
-        Nat.compare(record1.id, record2.id);
+      public func compareById(r1 : AttendanceRecord, r2 : AttendanceRecord) : Order.Order {
+        Nat.compare(r1.id, r2.id);
       };
     };
 
@@ -109,8 +165,8 @@ actor {
         approvedBy : Text;
       };
 
-      public func compareById(leave1 : LeaveEntry, leave2 : LeaveEntry) : Order.Order {
-        Nat.compare(leave1.id, leave2.id);
+      public func compareById(l1 : LeaveEntry, l2 : LeaveEntry) : Order.Order {
+        Nat.compare(l1.id, l2.id);
       };
     };
 
@@ -123,8 +179,8 @@ actor {
         isRead : Bool;
       };
 
-      public func compareById(notif1 : Notification, notif2 : Notification) : Order.Order {
-        Nat.compare(notif1.id, notif2.id);
+      public func compareById(n1 : Notification, n2 : Notification) : Order.Order {
+        Nat.compare(n1.id, n2.id);
       };
     };
 
@@ -165,7 +221,7 @@ actor {
   let leaveEntries = Map.empty<Nat, Entities.LeaveEntry.LeaveEntry>();
   let notifications = Map.empty<Nat, Entities.Notification.Notification>();
 
-  // ID Counters
+  // ID Counters -- original names preserved for stable variable compatibility
   var studentId = 1;
   var teacherId = 1;
   var courseId = 1;
@@ -173,51 +229,17 @@ actor {
   var leaveId = 1;
   var notificationId = 1;
 
-  // User Profile Functions
-  public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view profiles");
-    };
-    userProfiles.get(caller);
-  };
-
-  public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
-    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
-      Runtime.trap("Unauthorized: Can only view your own profile");
-    };
-    userProfiles.get(user);
-  };
-
-  public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can save profiles");
-    };
-    userProfiles.add(caller, profile);
-  };
-
-  // Admin Functions
-  public shared ({ caller }) func addStudent(student : Entities.Student.Student) : async Nat {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
-      Runtime.trap("Unauthorized: Only admins can add students");
-    };
-    let newStudent : Entities.Student.Student = {
-      student with
-      id = studentId;
-    };
+  public shared func addStudent(student : Entities.Student.Student) : async Nat {
+    let newStudent : Entities.Student.Student = { student with id = studentId };
     students.add(studentId, newStudent);
     let currentId = studentId;
     studentId += 1;
     currentId;
   };
 
-  public shared ({ caller }) func updateStudent(id : Nat, student : Entities.Student.Student) : async () {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
-      Runtime.trap("Unauthorized: Only admins can update students");
-    };
-    if (not students.containsKey(id)) {
-      Runtime.trap("Student not found");
-    };
-    let updatedStudent : Entities.Student.Student = {
+  public shared func updateStudent(id : Nat, student : Entities.Student.Student) : async () {
+    if (not students.containsKey(id)) { Runtime.trap("Student not found") };
+    students.add(id, {
       id;
       name = student.name;
       rollNo = student.rollNo;
@@ -227,62 +249,33 @@ actor {
       batch = student.batch;
       parentContact = student.parentContact;
       isActive = student.isActive;
-    };
-    students.add(id, updatedStudent);
+    });
   };
 
-  public shared ({ caller }) func addTeacher(teacher : Entities.Teacher.Teacher) : async Nat {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
-      Runtime.trap("Unauthorized: Only admins can add teachers");
-    };
-    let newTeacher : Entities.Teacher.Teacher = {
-      teacher with
-      id = teacherId;
-    };
+  public shared func addTeacher(teacher : Entities.Teacher.Teacher) : async Nat {
+    let newTeacher : Entities.Teacher.Teacher = { teacher with id = teacherId };
     teachers.add(teacherId, newTeacher);
     let currentId = teacherId;
     teacherId += 1;
     currentId;
   };
 
-  public shared ({ caller }) func updateTeacher(id : Nat, teacher : Entities.Teacher.Teacher) : async () {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
-      Runtime.trap("Unauthorized: Only admins can update teachers");
-    };
-    if (not teachers.containsKey(id)) {
-      Runtime.trap("Teacher not found");
-    };
-    let updatedTeacher : Entities.Teacher.Teacher = {
-      id;
-      name = teacher.name;
-      email = teacher.email;
-      isActive = teacher.isActive;
-    };
-    teachers.add(id, updatedTeacher);
+  public shared func updateTeacher(id : Nat, teacher : Entities.Teacher.Teacher) : async () {
+    if (not teachers.containsKey(id)) { Runtime.trap("Teacher not found") };
+    teachers.add(id, { id; name = teacher.name; email = teacher.email; isActive = teacher.isActive });
   };
 
-  public shared ({ caller }) func addCourse(course : Entities.Course.Course) : async Nat {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
-      Runtime.trap("Unauthorized: Only admins can add courses");
-    };
-    let newCourse : Entities.Course.Course = {
-      course with
-      id = courseId;
-    };
+  public shared func addCourse(course : Entities.Course.Course) : async Nat {
+    let newCourse : Entities.Course.Course = { course with id = courseId };
     courses.add(courseId, newCourse);
     let currentId = courseId;
     courseId += 1;
     currentId;
   };
 
-  public shared ({ caller }) func updateCourse(id : Nat, course : Entities.Course.Course) : async () {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
-      Runtime.trap("Unauthorized: Only admins can update courses");
-    };
-    if (not courses.containsKey(id)) {
-      Runtime.trap("Course not found");
-    };
-    let updatedCourse : Entities.Course.Course = {
+  public shared func updateCourse(id : Nat, course : Entities.Course.Course) : async () {
+    if (not courses.containsKey(id)) { Runtime.trap("Course not found") };
+    courses.add(id, {
       id;
       name = course.name;
       code = course.code;
@@ -290,36 +283,24 @@ actor {
       year = course.year;
       courseType = course.courseType;
       isActive = course.isActive;
-    };
-    courses.add(id, updatedCourse);
+    });
   };
 
-  // Teacher Functions
-  public shared ({ caller }) func submitAttendance(submission : Entities.AttendanceSubmission) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only teachers can submit attendance");
+  public shared func submitAttendance(submission : Entities.AttendanceSubmission) : async () {
+    if (submission.records.size() == 0) {
+      Runtime.trap("At least one student record is required");
     };
-
-    let records = submission.records;
-    if (records.size() == 0) {
-      Runtime.trap("At least one student must be present for each class/day");
-    };
-
     switch (courses.get(submission.courseId)) {
-      case (null) { Runtime.trap("This course does not exist") };
+      case (null) { Runtime.trap("Course not found") };
       case (?course) {
         let period = submission.period;
         if ((period > 5 and course.courseType == #theory) or (period > 7 and course.courseType == #practical)) {
-          Runtime.trap("You can only submit up to 5 records per day on theory class and up to 7 records for practical class");
+          Runtime.trap("Period limit exceeded");
         };
-        let currentDate = Time.now();
-        for (record in records.values()) {
-          let status : Entities.AttendanceStatus = switch (record.isPresent) {
-            case (true) { #present };
-            case (false) { #absent };
-          };
-
-          let attendanceRecord : Entities.AttendanceRecord.AttendanceRecord = {
+        let now = Time.now();
+        for (record in submission.records.values()) {
+          let status : Entities.AttendanceStatus = if (record.isPresent) #present else #absent;
+          attendanceRecords.add(attendanceId, {
             id = attendanceId;
             studentId = record.studentId;
             courseId = submission.courseId;
@@ -328,177 +309,92 @@ actor {
             period = submission.period;
             sectionOrBatch = submission.sectionOrBatch;
             status;
-            createdAt = currentDate;
-          };
-          attendanceRecords.add(attendanceId, attendanceRecord);
-
+            createdAt = now;
+          });
           if (not record.isPresent) {
-            let notification : Entities.Notification.Notification = {
+            notifications.add(notificationId, {
               id = notificationId;
               studentId = record.studentId;
               message = "Absent without approved leave";
               date = submission.date;
               isRead = false;
-            };
-            notifications.add(notificationId, notification);
+            });
             notificationId += 1;
           };
-
           attendanceId += 1;
         };
       };
     };
   };
 
-  // Query Functions
-  public query ({ caller }) func getStudentsByFilter(filters : Entities.StudentFilters) : async [Entities.Student.Student] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can view students");
-    };
-    students.values().toArray().filter(
-      func(student) {
-        switch (filters.year) {
-          case (null) { true };
-          case (?year) { student.year == year };
-        };
-      },
-    ).filter(
-      func(student) {
-        switch (filters.semester) {
-          case (null) { true };
-          case (?semester) { student.semester == semester };
-        };
-      },
-    ).filter(
-      func(student) {
-        switch (filters.section) {
-          case (null) { true };
-          case (?section) { student.section == section };
-        };
-      },
-    ).filter(
-      func(student) {
-        switch (filters.batch) {
-          case (null) { true };
-          case (?batch) { student.batch == batch };
-        };
-      },
-    ).sort(Entities.Student.compareById);
+  public query func getStudentsByFilter(filters : Entities.StudentFilters) : async [Entities.Student.Student] {
+    students.values().toArray()
+      .filter(func(s) { switch (filters.year) { case (null) true; case (?y) s.year == y } })
+      .filter(func(s) { switch (filters.semester) { case (null) true; case (?sem) s.semester == sem } })
+      .filter(func(s) { switch (filters.section) { case (null) true; case (?sec) s.section == sec } })
+      .filter(func(s) { switch (filters.batch) { case (null) true; case (?b) s.batch == b } })
+      .sort(Entities.Student.compareById);
   };
 
-  public query ({ caller }) func getAttendanceByStudent(studentId : Nat) : async [Entities.AttendanceRecord.AttendanceRecord] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can view attendance");
-    };
-    attendanceRecords.values().toArray().filter(
-      func(record) {
-        record.studentId == studentId;
-      },
-    ).sort(Entities.AttendanceRecord.compareById);
+  public query func getAttendanceByStudent(sid : Nat) : async [Entities.AttendanceRecord.AttendanceRecord] {
+    attendanceRecords.values().toArray().filter(func(r) { r.studentId == sid }).sort(Entities.AttendanceRecord.compareById);
   };
 
-  public query ({ caller }) func getAttendanceByDate(date : Text) : async [Entities.AttendanceRecord.AttendanceRecord] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can view attendance");
-    };
-    attendanceRecords.values().toArray().filter(
-      func(record) {
-        record.date == date;
-      },
-    ).sort(Entities.AttendanceRecord.compareById);
+  public query func getAttendanceByDate(date : Text) : async [Entities.AttendanceRecord.AttendanceRecord] {
+    attendanceRecords.values().toArray().filter(func(r) { r.date == date }).sort(Entities.AttendanceRecord.compareById);
   };
 
-  public query ({ caller }) func getAttendanceByCourse(courseId : Nat) : async [Entities.AttendanceRecord.AttendanceRecord] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can view attendance");
-    };
-    attendanceRecords.values().toArray().filter(
-      func(record) {
-        record.courseId == courseId;
-      },
-    ).sort(Entities.AttendanceRecord.compareById);
+  public query func getAttendanceByCourse(cid : Nat) : async [Entities.AttendanceRecord.AttendanceRecord] {
+    attendanceRecords.values().toArray().filter(func(r) { r.courseId == cid }).sort(Entities.AttendanceRecord.compareById);
   };
 
-  public shared ({ caller }) func addLeaveEntry(leave : Entities.LeaveEntry.LeaveEntry) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only teachers can add leave entries");
-    };
-    let newLeave : Entities.LeaveEntry.LeaveEntry = {
-      leave with
-      id = leaveId;
-    };
+  public shared func addLeaveEntry(leave : Entities.LeaveEntry.LeaveEntry) : async Nat {
+    let newLeave : Entities.LeaveEntry.LeaveEntry = { leave with id = leaveId };
     leaveEntries.add(leaveId, newLeave);
     let currentId = leaveId;
     leaveId += 1;
     currentId;
   };
 
-  public shared ({ caller }) func approveLeave(leaveId : Nat, approvedBy : Text) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only teachers can approve leave entries");
-    };
-    switch (leaveEntries.get(leaveId)) {
+  public shared func approveLeave(lid : Nat, approvedBy : Text) : async () {
+    switch (leaveEntries.get(lid)) {
       case (null) { Runtime.trap("Leave not found") };
       case (?leave) {
-        let approvedLeave : Entities.LeaveEntry.LeaveEntry = {
-          leave with
-          isApproved = true;
-          approvedBy;
-        };
-        leaveEntries.add(leaveId, approvedLeave);
+        leaveEntries.add(lid, { leave with isApproved = true; approvedBy });
       };
     };
   };
 
-  public query ({ caller }) func getNotifications(studentId : Nat) : async [Entities.Notification.Notification] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can view notifications");
-    };
-    notifications.values().toArray().filter(
-      func(notification) {
-        notification.studentId == studentId;
-      },
-    ).sort(Entities.Notification.compareById);
+  public query func getNotifications(sid : Nat) : async [Entities.Notification.Notification] {
+    notifications.values().toArray().filter(func(n) { n.studentId == sid }).sort(Entities.Notification.compareById);
   };
 
-  public query ({ caller }) func getAllStudents() : async [Entities.Student.Student] {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
-      Runtime.trap("Unauthorized: Only admins can view all students");
-    };
+  public query func getAllStudents() : async [Entities.Student.Student] {
     students.values().toArray().sort(Entities.Student.compareById);
   };
 
-  public query ({ caller }) func getAllTeachers() : async [Entities.Teacher.Teacher] {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
-      Runtime.trap("Unauthorized: Only admins can view all teachers");
-    };
+  public query func getAllTeachers() : async [Entities.Teacher.Teacher] {
     teachers.values().toArray().sort(Entities.Teacher.compareById);
   };
 
-  public query ({ caller }) func getAllCourses() : async [Entities.Course.Course] {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
-      Runtime.trap("Unauthorized: Only admins can view all courses");
-    };
+  public query func getAllCourses() : async [Entities.Course.Course] {
     courses.values().toArray().sort(Entities.Course.compareById);
   };
 
-  public query ({ caller }) func getDashboardStats() : async Entities.DashboardStats {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can view dashboard stats");
-    };
-    
-    let totalStudents = students.size();
-    let totalTeachers = teachers.size();
-    let totalCourses = courses.size();
-    
-    // Count today's attendance records (simplified - counts all records)
-    let todayAttendanceCount = attendanceRecords.size();
-    
+  public query func getAllLeaveEntries() : async [Entities.LeaveEntry.LeaveEntry] {
+    leaveEntries.values().toArray().sort(Entities.LeaveEntry.compareById);
+  };
+
+  public query func getAllNotifications() : async [Entities.Notification.Notification] {
+    notifications.values().toArray().sort(Entities.Notification.compareById);
+  };
+
+  public query func getDashboardStats() : async Entities.DashboardStats {
     {
-      totalStudents;
-      totalTeachers;
-      totalCourses;
-      todayAttendanceCount;
+      totalStudents = students.size();
+      totalTeachers = teachers.size();
+      totalCourses = courses.size();
+      todayAttendanceCount = attendanceRecords.size();
     };
   };
 };

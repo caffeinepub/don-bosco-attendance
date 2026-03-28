@@ -1,12 +1,3 @@
-import type { Principal } from "@icp-sdk/core/principal";
-export interface Some<T> {
-    __kind__: "Some";
-    value: T;
-}
-export interface None {
-    __kind__: "None";
-}
-export type Option<T> = Some<T> | None;
 export interface Teacher {
     id: bigint;
     name: string;
@@ -101,32 +92,26 @@ export enum LeaveType {
     leave = "leave",
     onDuty = "onDuty"
 }
-export enum UserRole {
-    admin = "admin",
-    user = "user",
-    guest = "guest"
-}
 export interface backendInterface {
+    login(username: string, password: string): Promise<UserProfile | null>;
+    createTeacherAccount(username: string, password: string, name: string): Promise<boolean>;
+    changePassword(username: string, oldPassword: string, newPassword: string): Promise<boolean>;
     addCourse(course: Course): Promise<bigint>;
     addLeaveEntry(leave: LeaveEntry): Promise<bigint>;
     addStudent(student: Student): Promise<bigint>;
     addTeacher(teacher: Teacher): Promise<bigint>;
     approveLeave(leaveId: bigint, approvedBy: string): Promise<void>;
-    assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     getAllCourses(): Promise<Array<Course>>;
     getAllStudents(): Promise<Array<Student>>;
     getAllTeachers(): Promise<Array<Teacher>>;
+    getAllLeaveEntries(): Promise<Array<LeaveEntry>>;
+    getAllNotifications(): Promise<Array<Notification>>;
     getAttendanceByCourse(courseId: bigint): Promise<Array<AttendanceRecord>>;
     getAttendanceByDate(date: string): Promise<Array<AttendanceRecord>>;
     getAttendanceByStudent(studentId: bigint): Promise<Array<AttendanceRecord>>;
-    getCallerUserProfile(): Promise<UserProfile | null>;
-    getCallerUserRole(): Promise<UserRole>;
     getDashboardStats(): Promise<DashboardStats>;
     getNotifications(studentId: bigint): Promise<Array<Notification>>;
     getStudentsByFilter(filters: StudentFilters): Promise<Array<Student>>;
-    getUserProfile(user: Principal): Promise<UserProfile | null>;
-    isCallerAdmin(): Promise<boolean>;
-    saveCallerUserProfile(profile: UserProfile): Promise<void>;
     submitAttendance(submission: AttendanceSubmission): Promise<void>;
     updateCourse(id: bigint, course: Course): Promise<void>;
     updateStudent(id: bigint, student: Student): Promise<void>;

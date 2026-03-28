@@ -26,13 +26,18 @@ import { toast } from "sonner";
 import { useActor } from "../hooks/useActor";
 
 const SKEL_ROWS = ["r1", "r2", "r3", "r4"];
-const SKEL_COLS = ["c1", "c2", "c3", "c4"];
+const SKEL_COLS = ["c1", "c2", "c3", "c4", "c5"];
 
 export default function TeachersPage() {
   const { actor, isFetching } = useActor();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "" });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    username: "",
+    password: "",
+  });
 
   const { data: teachers = [], isLoading } = useQuery({
     queryKey: ["teachers"],
@@ -49,12 +54,20 @@ export default function TeachersPage() {
         email: form.email,
         isActive: true,
       });
+      // Create login account for the teacher
+      if (form.username && form.password) {
+        await actor.createTeacherAccount(
+          form.username,
+          form.password,
+          form.name,
+        );
+      }
     },
     onSuccess: () => {
       toast.success("Teacher added!");
       qc.invalidateQueries({ queryKey: ["teachers"] });
       setOpen(false);
-      setForm({ name: "", email: "" });
+      setForm({ name: "", email: "", username: "", password: "" });
     },
     onError: () => toast.error("Failed to add teacher"),
   });
@@ -102,6 +115,29 @@ export default function TeachersPage() {
                   data-ocid="teachers.email.input"
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label>Login Username</Label>
+                <Input
+                  placeholder="e.g. teacher1"
+                  value={form.username}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, username: e.target.value }))
+                  }
+                  data-ocid="teachers.username.input"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Login Password</Label>
+                <Input
+                  type="password"
+                  placeholder="Set a password for this teacher"
+                  value={form.password}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, password: e.target.value }))
+                  }
+                  data-ocid="teachers.password.input"
+                />
+              </div>
               <div className="flex gap-2">
                 <Button
                   className="flex-1"
@@ -111,7 +147,7 @@ export default function TeachersPage() {
                 >
                   {addMutation.isPending ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
                       Adding...
                     </>
                   ) : (

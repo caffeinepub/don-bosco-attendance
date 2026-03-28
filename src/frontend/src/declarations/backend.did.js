@@ -107,6 +107,9 @@ export const AttendanceSubmission = IDL.Record({
 
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'login' : IDL.Func([IDL.Text, IDL.Text], [IDL.Opt(UserProfile)], []),
+  'createTeacherAccount' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [IDL.Bool], []),
+  'changePassword' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [IDL.Bool], []),
   'addCourse' : IDL.Func([Course], [IDL.Nat], []),
   'addLeaveEntry' : IDL.Func([LeaveEntry], [IDL.Nat], []),
   'addStudent' : IDL.Func([Student], [IDL.Nat], []),
@@ -114,6 +117,8 @@ export const idlService = IDL.Service({
   'approveLeave' : IDL.Func([IDL.Nat, IDL.Text], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'getAllCourses' : IDL.Func([], [IDL.Vec(Course)], ['query']),
+  'getAllLeaveEntries' : IDL.Func([], [IDL.Vec(LeaveEntry)], ['query']),
+  'getAllNotifications' : IDL.Func([], [IDL.Vec(Notification)], ['query']),
   'getAllStudents' : IDL.Func([], [IDL.Vec(Student)], ['query']),
   'getAllTeachers' : IDL.Func([], [IDL.Vec(Teacher)], ['query']),
   'getAttendanceByCourse' : IDL.Func(
@@ -255,6 +260,9 @@ export const idlFactory = ({ IDL }) => {
   
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'login' : IDL.Func([IDL.Text, IDL.Text], [IDL.Opt(UserProfile)], []),
+    'createTeacherAccount' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [IDL.Bool], []),
+    'changePassword' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [IDL.Bool], []),
     'addCourse' : IDL.Func([Course], [IDL.Nat], []),
     'addLeaveEntry' : IDL.Func([LeaveEntry], [IDL.Nat], []),
     'addStudent' : IDL.Func([Student], [IDL.Nat], []),
@@ -262,6 +270,8 @@ export const idlFactory = ({ IDL }) => {
     'approveLeave' : IDL.Func([IDL.Nat, IDL.Text], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'getAllCourses' : IDL.Func([], [IDL.Vec(Course)], ['query']),
+    'getAllLeaveEntries' : IDL.Func([], [IDL.Vec(LeaveEntry)], ['query']),
+    'getAllNotifications' : IDL.Func([], [IDL.Vec(Notification)], ['query']),
     'getAllStudents' : IDL.Func([], [IDL.Vec(Student)], ['query']),
     'getAllTeachers' : IDL.Func([], [IDL.Vec(Teacher)], ['query']),
     'getAttendanceByCourse' : IDL.Func(
