@@ -7,7 +7,6 @@ const ACTOR_QUERY_KEY = "actor";
 
 export function useActor() {
   const queryClient = useQueryClient();
-
   const actorQuery = useQuery<backendInterface>({
     queryKey: [ACTOR_QUERY_KEY],
     queryFn: async () => {
@@ -20,6 +19,9 @@ export function useActor() {
   useEffect(() => {
     if (actorQuery.data) {
       queryClient.invalidateQueries({
+        predicate: (query) => !query.queryKey.includes(ACTOR_QUERY_KEY),
+      });
+      queryClient.refetchQueries({
         predicate: (query) => !query.queryKey.includes(ACTOR_QUERY_KEY),
       });
     }
