@@ -7,7 +7,6 @@ const ACTOR_QUERY_KEY = "actor";
 
 export function useActor() {
   const queryClient = useQueryClient();
-
   const actorQuery = useQuery<backendInterface>({
     queryKey: [ACTOR_QUERY_KEY],
     queryFn: async () => {
